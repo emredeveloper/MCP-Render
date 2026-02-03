@@ -1,12 +1,27 @@
+# Build aşaması
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Önce bağımlılıkları kopyala ve yükle (tüm bağımlılıklar dahil)
+COPY package*.json ./
+RUN npm install
+
+# Kaynak kodları kopyala ve derle
+COPY . .
+RUN npm run build
+
+# Production aşaması
 FROM node:20-alpine
 
 WORKDIR /app
 
+# Sadece production bağımlılıklarını yükle
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
-COPY . .
-RUN npm run build
+# Sadece derlenmiş dosyaları builder aşamasından kopyala
+COPY --from=builder /app/dist ./dist
 
 EXPOSE 8080
 
