@@ -17,7 +17,6 @@ const PORT = process.env.PORT || 8080;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
 
 // Ornek veri
 const exampleData = {
@@ -270,7 +269,8 @@ app.get("/sse", async (req, res) => {
 });
 
 // Message endpoint - Client'dan gelen mesajlar buraya gider
-app.post("/message", async (req, res) => {
+// NOTE: MCP SDK reads the raw request stream. Avoid express.json() here.
+app.post("/message", express.raw({ type: "application/json" }), async (req, res) => {
   if (!transport) {
     res.status(503).json({ error: "SSE baglantisi aktif degil" });
     return;
@@ -278,6 +278,9 @@ app.post("/message", async (req, res) => {
   
   await transport.handlePostMessage(req, res);
 });
+
+// JSON body parser for non-MCP routes
+app.use(express.json());
 
 // Health check endpoint - Render icin gerekli
 app.get("/health", (req, res) => {
