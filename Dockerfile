@@ -16,9 +16,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Sadece production bağımlılıklarını yükle
+# Sadece production bağımlılıklarını yükle (scriptleri çalıştırma)
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --ignore-scripts
 
 # Sadece derlenmiş dosyaları builder aşamasından kopyala
 COPY --from=builder /app/dist ./dist
