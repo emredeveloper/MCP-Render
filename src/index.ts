@@ -269,8 +269,8 @@ app.get("/sse", async (req, res) => {
 });
 
 // Message endpoint - Client'dan gelen mesajlar buraya gider
-// NOTE: MCP SDK reads the raw request stream. Avoid express.json() here.
-app.post("/message", express.raw({ type: "application/json" }), async (req, res) => {
+// NOTE: MCP SDK reads the raw request stream. Do not attach any body parser.
+app.post("/message", async (req, res) => {
   if (!transport) {
     res.status(503).json({ error: "SSE baglantisi aktif degil" });
     return;
@@ -278,9 +278,6 @@ app.post("/message", express.raw({ type: "application/json" }), async (req, res)
   
   await transport.handlePostMessage(req, res);
 });
-
-// JSON body parser for non-MCP routes
-app.use(express.json());
 
 // Health check endpoint - Render icin gerekli
 app.get("/health", (req, res) => {
