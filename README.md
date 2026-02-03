@@ -1,84 +1,84 @@
 # MCP Server - Render Deployment (SSE Transport)
 
-Bu proje, **Model Context Protocol (MCP)** server'ının **SSE (Server-Sent Events)** transport ile Render'da çalıştırılması için bir örnek uygulamadır.
+This project is a sample **Model Context Protocol (MCP)** server that runs on Render using **SSE (Server-Sent Events)** transport.
 
-## Özellikler
+## Features
 
-- **HTTP + SSE Transport:** Render'da Web Service olarak çalışır
+- **HTTP + SSE Transport:** Runs as a Render Web Service
 - **Tools:**
-  - `get_users`: Tüm kullanıcıları listele
-  - `get_user_by_id`: ID'ye göre kullanıcı getir
-  - `get_server_stats`: Server istatistiklerini getir
-  - `calculate`: Basit matematik işlemleri (toplama, çıkarma, çarpma, bölme)
+  - `get_users`: List all users
+  - `get_user_by_id`: Get a user by ID
+  - `get_server_stats`: Get server stats
+  - `calculate`: Basic math (add, subtract, multiply, divide)
 - **Resources:**
-  - `data://users`: Kullanıcı listesi (JSON)
-  - `data://stats`: Server istatistikleri (JSON)
+  - `data://users`: Users list (JSON)
+  - `data://stats`: Server stats (JSON)
 
-## Endpoint'ler
+## Endpoints
 
-| Endpoint | Method | Açıklama |
-|----------|--------|----------|
-| `/` | GET | API bilgisi |
-| `/health` | GET | Health check (Render için) |
-| `/sse` | GET | SSE bağlantısı (MCP client buraya bağlanır) |
-| `/message` | POST | MCP mesajları (Client'tan server'a) |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | API info |
+| `/health` | GET | Health check (for Render) |
+| `/sse` | GET | SSE connection (MCP client connects here) |
+| `/message` | POST | MCP messages (client to server) |
 
-## Yerel Geliştirme
+## Local Development
 
 ```bash
-# Bağımlılıkları yükle
+# Install dependencies
 npm install
 
-# TypeScript'i derle
+# Build TypeScript
 npm run build
 
-# Server'ı çalıştır
+# Start server
 npm start
 
-# Geliştirme modunda izle
+# Watch mode
 npm run dev
 ```
 
-Server `http://localhost:8080` adresinde çalışacaktır.
+The server runs on `http://localhost:8080`.
 
-## Render'da Deploy Etme
+## Deploy to Render
 
-### 1. GitHub'a Push Et
+### 1. Push to GitHub
 
 ```bash
 git init
 git add .
 git commit -m "MCP Server SSE"
-git remote add origin https://github.com/kullaniciadiniz/mcp-server-sse.git
+git remote add origin https://github.com/yourusername/mcp-server-sse.git
 git push -u origin main
 ```
 
-### 2. Render'da Yeni Web Service Oluştur
+### 2. Create a Render Web Service
 
-1. [Render Dashboard](https://dashboard.render.com/)'a giriş yap
-2. **New > Web Service** seç
-3. GitHub reposunu bağla
-4. Aşağıdaki ayarları yap:
+1. Log in to the Render Dashboard
+2. Select **New > Web Service**
+3. Connect your GitHub repo
+4. Use these settings:
    - **Runtime:** Docker
-   - **Plan:** Free (veya istediğiniz plan)
+   - **Plan:** Free (or your preferred plan)
    - **Dockerfile Path:** `./Dockerfile`
    - **Port:** `8080`
-5. **Deploy**'a tıkla
+5. Click **Deploy**
 
-### 3. Blueprint ile Deploy (Alternatif)
+### 3. Deploy with Blueprint (Optional)
 
-`render.yaml` dosyası sayesinde Blueprint kullanabilirsin:
+You can deploy using `render.yaml`:
 
-1. [Render Blueprints](https://dashboard.render.com/blueprints) sayfasına git
-2. **New Blueprint Instance** seç
-3. GitHub reposunu seç
-4. Deploy'a tıkla
+1. Go to Render Blueprints
+2. Select **New Blueprint Instance**
+3. Choose your repo
+4. Deploy
 
-## MCP Client Kullanımı
+## MCP Client Usage
 
-SSE transport ile çalışan MCP server'a bağlanmak için client'ın SSE URL'sini kullanması gerekir.
+To connect to the MCP server over SSE, the client must use the SSE URL.
 
-### Claude Desktop Config (örnek)
+### Claude Desktop Config (example)
 
 ```json
 {
@@ -90,7 +90,7 @@ SSE transport ile çalışan MCP server'a bağlanmak için client'ın SSE URL'si
 }
 ```
 
-### Yerel Geliştirme için
+### Local Development Config
 
 ```json
 {
@@ -102,19 +102,19 @@ SSE transport ile çalışan MCP server'a bağlanmak için client'ın SSE URL'si
 }
 ```
 
-## API Test Etme
+## API Testing
 
 ### Health Check
 ```bash
 curl http://localhost:8080/health
 ```
 
-### SSE Bağlantısı (yeni terminalde)
+### SSE Connection (in a new terminal)
 ```bash
 curl http://localhost:8080/sse
 ```
 
-### MCP Message Gönderme
+### Send MCP Message
 ```bash
 curl -X POST http://localhost:8080/message \
   -H "Content-Type: application/json" \
@@ -125,29 +125,29 @@ curl -X POST http://localhost:8080/message \
   }'
 ```
 
-## Proje Yapısı
+## Project Structure
 
 ```
 .
 ├── src/
-│   └── index.ts          # MCP Server kodu (Express + SSE)
-├── dist/                 # Derlenmiş JavaScript (build sonrası)
-├── Dockerfile            # Docker imajı için
+│   └── index.ts          # MCP server code (Express + SSE)
+├── dist/                 # Compiled JavaScript (after build)
+├── Dockerfile            # Docker image
 ├── render.yaml           # Render blueprint
-├── package.json          # NPM bağımlılıkları
-├── tsconfig.json         # TypeScript ayarları
-└── README.md             # Bu dosya
+├── package.json          # NPM dependencies
+├── tsconfig.json         # TypeScript config
+└── README.md             # This file
 ```
 
-## Teknolojiler
+## Technologies
 
 - **@modelcontextprotocol/sdk:** MCP Server SDK
 - **Express:** HTTP framework
 - **SSE:** Server-Sent Events transport
-- **TypeScript:** Tip güvenli geliştirme
+- **TypeScript:** Type-safe development
 - **Docker:** Containerization
 - **Render:** Cloud deployment
 
-## Lisans
+## License
 
 MIT
