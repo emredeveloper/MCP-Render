@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: pyright-mcp-server
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8080"
+      - key: PYRIGHT_ROOT
+        value: "/app"
+    healthCheckPath: /health
+
