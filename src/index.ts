@@ -363,6 +363,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["sql"],
         },
       },
+      {
+        name: "db_exec",
+        description:
+          "SQLite yazma sorgusu calistirir (INSERT/UPDATE/DELETE/CREATE)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            sql: { type: "string", description: "SQL komutu" },
+            params: {
+              type: "array",
+              items: {},
+              description: "Opsiyonel parametreler",
+            },
+          },
+          required: ["sql"],
+        },
+      },
     ],
   };
 });
@@ -575,6 +592,29 @@ async function handleToolCall(name: string, args: unknown) {
       const rows = await sqliteAll(sql, params);
       return {
         content: [{ type: "text", text: JSON.stringify(rows, null, 2) }],
+      };
+    }
+
+    case "db_exec": {
+      const { sql, params = [] } = args as {
+        sql: string;
+        params?: unknown[];
+      };
+      const trimmed = sql.trim().toLowerCase();
+      if (trimmed.startsWith("select") || trimmed.startsWith("with")) {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          "db_exec sadece yazma islemleri icindir"
+        );
+      }
+      await sqliteRun(sql, params);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ ok: true }, null, 2),
+          },
+        ],
       };
     }
 

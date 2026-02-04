@@ -20,6 +20,7 @@ This project is a sample **Model Context Protocol (MCP)** server that runs on Re
   - `db_list_tables`: List SQLite tables (read-only)
   - `db_table_schema`: Show table schema (read-only)
   - `db_query`: Run SELECT/WITH queries (read-only)
+  - `db_exec`: Run INSERT/UPDATE/DELETE/CREATE (write)
 - **Resources:**
   - `data://users`: Users list (JSON)
   - `data://stats`: Server stats (JSON)
@@ -152,6 +153,7 @@ Example usage:
 - `db_list_tables`
 - `db_table_schema` with `table: "items"`
 - `db_query` with `sql: "SELECT * FROM items"`
+ - `db_exec` with `sql: "INSERT INTO items(name) VALUES('Elma'),('Armut')"`
 
 ## Project Structure
 
