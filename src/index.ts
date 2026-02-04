@@ -32,6 +32,58 @@ const exampleData = {
   },
 };
 
+// Mock ERP data (read-only, safe for demos)
+const mockErp = {
+  customers: [
+    { id: "C-1001", name: "Acme Corp", country: "US", status: "active" },
+    { id: "C-1002", name: "Globex Ltd", country: "UK", status: "active" },
+    { id: "C-1003", name: "Initech", country: "TR", status: "inactive" },
+  ],
+  products: [
+    { sku: "P-001", name: "Widget A", price: 19.5, currency: "USD" },
+    { sku: "P-002", name: "Widget B", price: 29.0, currency: "USD" },
+    { sku: "P-003", name: "Service Plan", price: 99.0, currency: "USD" },
+  ],
+  inventory: [
+    { sku: "P-001", warehouse: "WH-1", qty: 120 },
+    { sku: "P-002", warehouse: "WH-1", qty: 40 },
+    { sku: "P-003", warehouse: "WH-2", qty: 999 },
+  ],
+  orders: [
+    {
+      id: "SO-9001",
+      customerId: "C-1001",
+      status: "open",
+      lines: [
+        { sku: "P-001", qty: 2, unitPrice: 19.5 },
+        { sku: "P-003", qty: 1, unitPrice: 99.0 },
+      ],
+      total: 138.0,
+      currency: "USD",
+      createdAt: "2026-02-01T10:20:00.000Z",
+    },
+    {
+      id: "SO-9002",
+      customerId: "C-1002",
+      status: "shipped",
+      lines: [{ sku: "P-002", qty: 3, unitPrice: 29.0 }],
+      total: 87.0,
+      currency: "USD",
+      createdAt: "2026-02-02T08:00:00.000Z",
+    },
+  ],
+  invoices: [
+    {
+      id: "INV-5001",
+      orderId: "SO-9001",
+      status: "issued",
+      total: 138.0,
+      currency: "USD",
+      issuedAt: "2026-02-01T12:00:00.000Z",
+    },
+  ],
+};
+
 // MCP Server olustur
 const server = new Server(
   {
@@ -103,6 +155,80 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ["operation", "a", "b"],
+        },
+      },
+      {
+        name: "erp_list_customers",
+        description: "Mock ERP: Musteri listesini getirir (read-only)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            status: {
+              type: "string",
+              description: "Opsiyonel: active/inactive",
+            },
+          },
+          required: [],
+        },
+      },
+      {
+        name: "erp_get_customer",
+        description: "Mock ERP: Musteriyi ID ile getirir",
+        inputSchema: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "Musteri ID" },
+          },
+          required: ["id"],
+        },
+      },
+      {
+        name: "erp_list_orders",
+        description: "Mock ERP: Siparis listesini getirir",
+        inputSchema: {
+          type: "object",
+          properties: {
+            status: { type: "string", description: "open/shipped" },
+            customerId: { type: "string", description: "Musteri ID" },
+          },
+          required: [],
+        },
+      },
+      {
+        name: "erp_get_order",
+        description: "Mock ERP: Siparisi ID ile getirir",
+        inputSchema: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "Siparis ID" },
+          },
+          required: ["id"],
+        },
+      },
+      {
+        name: "erp_list_invoices",
+        description: "Mock ERP: Fatura listesini getirir",
+        inputSchema: {
+          type: "object",
+          properties: {
+            status: { type: "string", description: "issued/paid" },
+          },
+          required: [],
+        },
+      },
+      {
+        name: "erp_list_inventory",
+        description: "Mock ERP: Stok durumunu getirir",
+        inputSchema: {
+          type: "object",
+          properties: {
+            sku: { type: "string", description: "Opsiyonel SKU filtresi" },
+            warehouse: {
+              type: "string",
+              description: "Opsiyonel depo filtresi",
+            },
+          },
+          required: [],
         },
       },
     ],
@@ -195,6 +321,66 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       };
+    }
+
+    case "erp_list_customers": {
+      const { status } = (args ?? {}) as { status?: string };
+      const data = status
+        ? mockErp.customers.filter((c) => c.status === status)
+        : mockErp.customers;
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    }
+
+    case "erp_get_customer": {
+      const { id } = args as { id: string };
+      const customer = mockErp.customers.find((c) => c.id === id);
+      if (!customer) {
+        throw new McpError(ErrorCode.InvalidRequest, `Musteri bulunamadi: ${id}`);
+      }
+      return {
+        content: [{ type: "text", text: JSON.stringify(customer, null, 2) }],
+      };
+    }
+
+    case "erp_list_orders": {
+      const { status, customerId } = (args ?? {}) as {
+        status?: string;
+        customerId?: string;
+      };
+      let data = mockErp.orders;
+      if (status) data = data.filter((o) => o.status === status);
+      if (customerId) data = data.filter((o) => o.customerId === customerId);
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    }
+
+    case "erp_get_order": {
+      const { id } = args as { id: string };
+      const order = mockErp.orders.find((o) => o.id === id);
+      if (!order) {
+        throw new McpError(ErrorCode.InvalidRequest, `Siparis bulunamadi: ${id}`);
+      }
+      return {
+        content: [{ type: "text", text: JSON.stringify(order, null, 2) }],
+      };
+    }
+
+    case "erp_list_invoices": {
+      const { status } = (args ?? {}) as { status?: string };
+      const data = status
+        ? mockErp.invoices.filter((i) => i.status === status)
+        : mockErp.invoices;
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    }
+
+    case "erp_list_inventory": {
+      const { sku, warehouse } = (args ?? {}) as {
+        sku?: string;
+        warehouse?: string;
+      };
+      let data = mockErp.inventory;
+      if (sku) data = data.filter((i) => i.sku === sku);
+      if (warehouse) data = data.filter((i) => i.warehouse === warehouse);
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
     }
 
     default:

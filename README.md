@@ -10,6 +10,12 @@ This project is a sample **Model Context Protocol (MCP)** server that runs on Re
   - `get_user_by_id`: Get a user by ID
   - `get_server_stats`: Get server stats
   - `calculate`: Basic math (add, subtract, multiply, divide)
+  - `erp_list_customers`: Mock ERP customers (read-only)
+  - `erp_get_customer`: Mock ERP customer by ID
+  - `erp_list_orders`: Mock ERP orders (read-only)
+  - `erp_get_order`: Mock ERP order by ID
+  - `erp_list_invoices`: Mock ERP invoices (read-only)
+  - `erp_list_inventory`: Mock ERP inventory (read-only)
 - **Resources:**
   - `data://users`: Users list (JSON)
   - `data://stats`: Server stats (JSON)
