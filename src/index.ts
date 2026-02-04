@@ -3,10 +3,10 @@ import express from "express";
 import cors from "cors";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import { appendFile } from "fs/promises";
-import { mkdirSync } from "fs";
+import { appendFile, readFile, writeFile } from "fs/promises";
+import { mkdirSync, existsSync } from "fs";
 import path from "path";
-import sqlite3 from "sqlite3";
+import initSqlJs from "sql.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -30,33 +30,52 @@ function ensureSqliteDir() {
   mkdirSync(dir, { recursive: true });
 }
 
-let sqliteDb: sqlite3.Database | null = null;
-function getSqliteDb() {
-  if (!sqliteDb) {
-    ensureSqliteDir();
-    sqliteDb = new sqlite3.Database(SQLITE_FILE);
+let sqlJs: any = null;
+let sqlDb: any = null;
+
+async function getSqliteDb() {
+  if (!sqlJs) {
+    sqlJs = await initSqlJs();
   }
-  return sqliteDb;
+  if (!sqlDb) {
+    ensureSqliteDir();
+    if (existsSync(SQLITE_FILE)) {
+      const data = await readFile(SQLITE_FILE);
+      sqlDb = new sqlJs.Database(new Uint8Array(data));
+    } else {
+      sqlDb = new sqlJs.Database();
+    }
+  }
+  return sqlDb;
 }
 
-function sqliteAll<T = unknown>(sql: string, params: unknown[] = []) {
-  const db = getSqliteDb();
-  return new Promise<T[]>((resolve, reject) => {
-    db.all(sql, params as any[], (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows as T[]);
-    });
-  });
+async function persistSqliteDb() {
+  if (!sqlDb) return;
+  const data = sqlDb.export();
+  await writeFile(SQLITE_FILE, Buffer.from(data));
 }
 
-function sqliteRun(sql: string, params: unknown[] = []) {
-  const db = getSqliteDb();
-  return new Promise<void>((resolve, reject) => {
-    db.run(sql, params as any[], (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+async function sqliteAll<T = unknown>(sql: string, params: unknown[] = []) {
+  const db = await getSqliteDb();
+  const stmt = db.prepare(sql);
+  stmt.bind(params as any[]);
+  const rows: T[] = [];
+  while (stmt.step()) {
+    rows.push(stmt.getAsObject() as T);
+  }
+  stmt.free();
+  return rows;
+}
+
+async function sqliteRun(sql: string, params: unknown[] = []) {
+  const db = await getSqliteDb();
+  const stmt = db.prepare(sql);
+  stmt.bind(params as any[]);
+  while (stmt.step()) {
+    // drain
+  }
+  stmt.free();
+  await persistSqliteDb();
 }
 
 async function logToolCall(entry: {
