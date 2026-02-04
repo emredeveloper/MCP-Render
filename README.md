@@ -16,6 +16,10 @@ This project is a sample **Model Context Protocol (MCP)** server that runs on Re
   - `erp_get_order`: Mock ERP order by ID
   - `erp_list_invoices`: Mock ERP invoices (read-only)
   - `erp_list_inventory`: Mock ERP inventory (read-only)
+  - `db_create`: Create SQLite DB (optional schema)
+  - `db_list_tables`: List SQLite tables (read-only)
+  - `db_table_schema`: Show table schema (read-only)
+  - `db_query`: Run SELECT/WITH queries (read-only)
 - **Resources:**
   - `data://users`: Users list (JSON)
   - `data://stats`: Server stats (JSON)
@@ -130,6 +134,24 @@ curl -X POST http://localhost:8080/message \
     "method": "tools/list"
   }'
 ```
+
+## Logging
+
+Tool calls are logged as JSON lines. By default logs go to stdout.  
+Set `LOG_FILE` to write logs to a file instead.
+
+## SQLite
+
+The server can create and query a local SQLite database.
+
+Env vars:
+- `SQLITE_FILE` (default: `./data/app.db`)
+
+Example usage:
+- `db_create` with `schema_sql: "CREATE TABLE items(id INTEGER PRIMARY KEY, name TEXT);"`
+- `db_list_tables`
+- `db_table_schema` with `table: "items"`
+- `db_query` with `sql: "SELECT * FROM items"`
 
 ## Project Structure
 

@@ -3,6 +3,10 @@ import express from "express";
 import cors from "cors";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { appendFile } from "fs/promises";
+import { mkdirSync } from "fs";
+import path from "path";
+import sqlite3 from "sqlite3";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -14,9 +18,67 @@ import {
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+const LOG_FILE = process.env.LOG_FILE || "";
+const SQLITE_FILE =
+  process.env.SQLITE_FILE || path.join(process.cwd(), "data", "app.db");
 
 // Middleware
 app.use(cors());
+
+function ensureSqliteDir() {
+  const dir = path.dirname(SQLITE_FILE);
+  mkdirSync(dir, { recursive: true });
+}
+
+let sqliteDb: sqlite3.Database | null = null;
+function getSqliteDb() {
+  if (!sqliteDb) {
+    ensureSqliteDir();
+    sqliteDb = new sqlite3.Database(SQLITE_FILE);
+  }
+  return sqliteDb;
+}
+
+function sqliteAll<T = unknown>(sql: string, params: unknown[] = []) {
+  const db = getSqliteDb();
+  return new Promise<T[]>((resolve, reject) => {
+    db.all(sql, params as any[], (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows as T[]);
+    });
+  });
+}
+
+function sqliteRun(sql: string, params: unknown[] = []) {
+  const db = getSqliteDb();
+  return new Promise<void>((resolve, reject) => {
+    db.run(sql, params as any[], (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+async function logToolCall(entry: {
+  ts: string;
+  tool: string;
+  status: "ok" | "error";
+  duration_ms: number;
+  args?: unknown;
+  error?: string;
+  request_id?: unknown;
+}) {
+  const line = JSON.stringify(entry);
+  if (LOG_FILE) {
+    try {
+      await appendFile(LOG_FILE, `${line}\n`);
+      return;
+    } catch {
+      // Fall back to console if file write fails
+    }
+  }
+  console.log("MCP_LOG", line);
+}
 
 // Ornek veri
 const exampleData = {
@@ -231,14 +293,63 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: [],
         },
       },
+      {
+        name: "db_create",
+        description:
+          "SQLite DB olusturur. Opsiyonel schema_sql ile tablolar yaratir.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            schema_sql: {
+              type: "string",
+              description: "Opsiyonel CREATE TABLE SQL",
+            },
+          },
+          required: [],
+        },
+      },
+      {
+        name: "db_list_tables",
+        description: "SQLite tablolari listeler (read-only)",
+        inputSchema: {
+          type: "object",
+          properties: {},
+          required: [],
+        },
+      },
+      {
+        name: "db_table_schema",
+        description: "SQLite tablo semasini getirir (read-only)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            table: { type: "string", description: "Tablo adi" },
+          },
+          required: ["table"],
+        },
+      },
+      {
+        name: "db_query",
+        description: "SQLite SELECT sorgusu calistirir (read-only)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            sql: { type: "string", description: "SELECT sorgusu" },
+            params: {
+              type: "array",
+              items: {},
+              description: "Opsiyonel parametreler",
+            },
+          },
+          required: ["sql"],
+        },
+      },
     ],
   };
 });
 
 // Tool cagirilarini isle
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
+async function handleToolCall(name: string, args: unknown) {
   switch (name) {
     case "get_users": {
       return {
@@ -252,7 +363,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case "get_user_by_id": {
-      const id = args?.id as number;
+      const id = (args as any)?.id as number;
       const user = exampleData.users.find((u) => u.id === id);
       if (!user) {
         throw new McpError(
@@ -383,8 +494,100 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
     }
 
+    case "db_create": {
+      const { schema_sql } = (args ?? {}) as { schema_sql?: string };
+      // Ensure DB file exists by opening it
+      getSqliteDb();
+      if (schema_sql) {
+        const trimmed = schema_sql.trim().toLowerCase();
+        if (!trimmed.startsWith("create")) {
+          throw new McpError(
+            ErrorCode.InvalidRequest,
+            "Sadece CREATE ifadelerine izin veriliyor"
+          );
+        }
+        await sqliteRun(schema_sql);
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              { ok: true, db_file: SQLITE_FILE },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
+
+    case "db_list_tables": {
+      const rows = await sqliteAll<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+      );
+      return {
+        content: [{ type: "text", text: JSON.stringify(rows, null, 2) }],
+      };
+    }
+
+    case "db_table_schema": {
+      const { table } = args as { table: string };
+      const rows = await sqliteAll(
+        `PRAGMA table_info(${table.replace(/[^a-zA-Z0-9_]/g, "")})`
+      );
+      return {
+        content: [{ type: "text", text: JSON.stringify(rows, null, 2) }],
+      };
+    }
+
+    case "db_query": {
+      const { sql, params = [] } = args as {
+        sql: string;
+        params?: unknown[];
+      };
+      const trimmed = sql.trim().toLowerCase();
+      if (!(trimmed.startsWith("select") || trimmed.startsWith("with"))) {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          "Sadece SELECT/WITH sorgularina izin veriliyor"
+        );
+      }
+      const rows = await sqliteAll(sql, params);
+      return {
+        content: [{ type: "text", text: JSON.stringify(rows, null, 2) }],
+      };
+    }
+
     default:
       throw new McpError(ErrorCode.MethodNotFound, `Bilinmeyen tool: ${name}`);
+  }
+}
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+  const start = Date.now();
+
+  try {
+    const result = await handleToolCall(name, args);
+    await logToolCall({
+      ts: new Date().toISOString(),
+      tool: name,
+      status: "ok",
+      duration_ms: Date.now() - start,
+      args,
+    });
+    return result;
+  } catch (err) {
+    await logToolCall({
+      ts: new Date().toISOString(),
+      tool: name,
+      status: "error",
+      duration_ms: Date.now() - start,
+      args,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
   }
 });
 
